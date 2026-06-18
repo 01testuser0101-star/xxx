@@ -1,7 +1,10 @@
+const fs = require('fs');
+const path = require('path');
 const {
   AndroidConfig,
   createRunOncePlugin,
   withAndroidManifest,
+  withDangerousMod,
   withInfoPlist,
   withProjectBuildGradle,
 } = require('@expo/config-plugins');
@@ -13,11 +16,36 @@ const LOCATION_PERMISSIONS = [
   'android.permission.ACCESS_FINE_LOCATION',
 ];
 
+function addMapboxMavenRepository(contents) {
+  if (contents.includes('api.mapbox.com/downloads/v2/releases/maven')) {
+    return contents;
+  }
+
+  const mapboxMaven = `maven {
+            url 'https://api.mapbox.com/downloads/v2/releases/maven'
+            authentication { basic(BasicAuthentication) }
+            credentials {
+                username = 'mapbox'
+                password = providers.gradleProperty('MAPBOX_DOWNLOADS_TOKEN').orElse(providers.environmentVariable('MAPBOX_DOWNLOADS_TOKEN')).getOrElse('')
+            }
+        }`;
+
+  if (contents.includes('dependencyResolutionManagement')) {
+    return contents.replace(/repositories\s*\{/, match => `${match}\n        ${mapboxMaven}`);
+  }
+
+  return contents.replace(
+    /allprojects\s*\{\s*repositories\s*\{/,
+    match => `${match}\n        ${mapboxMaven}`,
+  );
+}
+
 function withMapboxNavigation(config, props = {}) {
   const {
     accessToken,
     enableBackgroundLocation = false,
     locationWhenInUsePermission = 'Allow this app to use your location for turn-by-turn navigation.',
+    locationAlwaysPermission = 'Allow this app to keep navigation active while it is in the background.',
   } = props;
 
   config = withInfoPlist(config, infoPlistConfig => {
@@ -26,8 +54,7 @@ function withMapboxNavigation(config, props = {}) {
 
     if (enableBackgroundLocation) {
       infoPlistConfig.modResults.NSLocationAlwaysAndWhenInUseUsageDescription =
-        props.locationAlwaysPermission ??
-        'Allow this app to keep navigation active while it is in the background.';
+        locationAlwaysPermission;
       infoPlistConfig.modResults.UIBackgroundModes = Array.from(
         new Set([...(infoPlistConfig.modResults.UIBackgroundModes ?? []), 'location']),
       );
@@ -89,17 +116,30 @@ function withMapboxNavigation(config, props = {}) {
       return gradleConfig;
     }
 
-    const mapboxMaven = `maven {\n            url 'https://api.mapbox.com/downloads/v2/releases/maven'\n            authentication { basic(BasicAuthentication) }\n            credentials {\n                username = 'mapbox'\n                password = project.findProperty('MAPBOX_DOWNLOADS_TOKEN') ?: System.getenv('MAPBOX_DOWNLOADS_TOKEN') ?: ''\n            }\n        }`;
-
-    if (!gradleConfig.modResults.contents.includes('api.mapbox.com/downloads/v2/releases/maven')) {
-      gradleConfig.modResults.contents = gradleConfig.modResults.contents.replace(
-        /allprojects\s*\{\s*repositories\s*\{/,
-        match => `${match}\n        ${mapboxMaven}`,
-      );
-    }
+    gradleConfig.modResults.contents = addMapboxMavenRepository(
+      gradleConfig.modResults.contents,
+    );
 
     return gradleConfig;
   });
+
+  config = withDangerousMod(config, [
+    'android',
+    dangerousConfig => {
+      const settingsGradle = path.join(dangerousConfig.modRequest.platformProjectRoot, 'settings.gradle');
+
+      if (fs.existsSync(settingsGradle)) {
+        const contents = fs.readFileSync(settingsGradle, 'utf8');
+        const nextContents = addMapboxMavenRepository(contents);
+
+        if (nextContents !== contents) {
+          fs.writeFileSync(settingsGradle, nextContents);
+        }
+      }
+
+      return dangerousConfig;
+    },
+  ]);
 
   return config;
 }
