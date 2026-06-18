@@ -1,0 +1,43 @@
+buildscript {
+  ext.safeExtGet = { prop, fallback ->
+    rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+  }
+}
+
+plugins {
+  id 'com.android.library'
+  id 'org.jetbrains.kotlin.android'
+}
+
+android {
+  namespace 'com.mapboxnavigationwrapper'
+  compileSdkVersion safeExtGet('compileSdkVersion', 36)
+
+  defaultConfig {
+    minSdkVersion safeExtGet('minSdkVersion', 23)
+    targetSdkVersion safeExtGet('targetSdkVersion', 36)
+  }
+}
+
+repositories {
+  google()
+  mavenCentral()
+  maven {
+    url 'https://api.mapbox.com/downloads/v2/releases/maven'
+    authentication { basic(BasicAuthentication) }
+    credentials {
+      username = 'mapbox'
+      password = project.findProperty('MAPBOX_DOWNLOADS_TOKEN') ?: System.getenv('MAPBOX_DOWNLOADS_TOKEN') ?: ''
+    }
+  }
+}
+
+dependencies {
+  implementation 'com.facebook.react:react-android'
+  implementation "org.jetbrains.kotlin:kotlin-stdlib:${safeExtGet('kotlinVersion', '2.1.20')}"
+  implementation 'com.mapbox.navigationcore:android-ndk27:3.26.0-alpha.1'
+  implementation 'com.mapbox.navigationcore:ui-components-ndk27:3.26.0-alpha.1'
+  implementation 'com.mapbox.navigationcore:ui-maps-ndk27:3.26.0-alpha.1'
+  implementation 'com.mapbox.navigationcore:voice-ndk27:3.26.0-alpha.1'
+  implementation 'com.mapbox.navigationcore:tripdata-ndk27:3.26.0-alpha.1'
+}

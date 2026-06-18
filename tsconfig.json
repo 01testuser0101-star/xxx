@@ -1,5 +1,5 @@
 {
   "extends": "@react-native/typescript-config/tsconfig.json",
-  "include": ["src/**/*.ts", "src/**/*.tsx", "index.js"],
-  "exclude": ["node_modules", "android", "ios"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "plugin/**/*.ts", "app.plugin.js"],
+  "exclude": ["node_modules", "android/build", "ios/build", "example"]
 }
