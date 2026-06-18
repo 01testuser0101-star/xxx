@@ -1,66 +1,124 @@
-# Mapbox React Native Latest
+# React Native Mapbox Navigation Wrapper
 
-A modern bare React Native starter project for running Mapbox maps with the community-maintained [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) package.
+Reusable React Native native module scaffold for wrapping the Mapbox turn-by-turn Navigation SDK on iOS and Android.
 
-## Current module choices
+This package is intended to be installed by another React Native app as a library. It exposes a typed JavaScript API, native iOS/Android package entry points, and an optional Expo config plugin for Expo prebuild/EAS consumers.
 
-- React Native `0.86.0`
-- React `19.1.0`
-- `@rnmapbox/maps` `10.3.1`
-- Mapbox Maps SDK v11 defaults through `@rnmapbox/maps`
-- TypeScript-first app source in `src/App.tsx`
+> Status: foundation scaffold. Native package registration, TypeScript API, CocoaPods/Gradle dependency wiring, and Expo config plugin are included. The full Mapbox route/session UI implementation should be completed inside the native module methods before publishing as production-ready navigation.
 
-## Prerequisites
+## Features
 
-1. Install Node.js 22 or newer.
-2. Set up the React Native Android and/or iOS native build toolchains.
-3. Create a Mapbox public access token.
-4. For iOS, install CocoaPods.
+- TypeScript API for starting/stopping navigation.
+- React Native event listener for navigation events.
+- Native view placeholder for an embedded navigation screen.
+- Android library module with Mapbox Navigation SDK dependencies.
+- iOS podspec with Mapbox Navigation SDK dependency.
+- Expo config plugin for tokens, location permissions, background navigation options, and Mapbox Maven setup.
 
-## Setup
+## Installation in a bare React Native app
 
 ```sh
-npm install
-cp .env.example .env
+npm install react-native-mapbox-navigation-wrapper
 ```
 
-Edit `.env` and set `MAPBOX_PUBLIC_TOKEN` to a public Mapbox access token.
+### Android
 
-> The sample app reads `process.env.MAPBOX_PUBLIC_TOKEN`. If your React Native bundler setup does not inject environment variables automatically, add your preferred environment plugin or replace the value in `src/App.tsx` during local development.
+Set a Mapbox downloads token for Gradle dependency resolution:
 
-## Run
-
-Start Metro:
-
-```sh
-npm start
+```properties
+# android/gradle.properties
+MAPBOX_DOWNLOADS_TOKEN=sk.your_downloads_token
 ```
 
-Run Android:
+The library contributes foreground location permissions from its manifest. Host apps should request runtime location permission before starting active navigation.
 
-```sh
-npm run android
-```
+### iOS
 
-Run iOS:
+Run CocoaPods after installing the package:
 
 ```sh
 cd ios && pod install && cd ..
-npm run ios
 ```
 
-## Native project generation
+Add a location usage string in the host app `Info.plist` if not using the Expo config plugin:
 
-This repository contains the JavaScript/TypeScript project scaffold. If native `android/` and `ios/` folders are not present yet, generate them with the React Native CLI for the pinned version:
-
-```sh
-npx @react-native-community/cli init MapboxReactNativeLatest --version 0.86.0
+```xml
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>Allow this app to use your location for turn-by-turn navigation.</string>
 ```
 
-Then copy this project's `src/`, `package.json`, `app.json`, `index.js`, `babel.config.js`, `metro.config.js`, and TypeScript/lint config files into the generated app.
+## Installation in an Expo prebuild/EAS app
 
-## Mapbox notes
+Expo Go is not supported because Mapbox Navigation requires custom native code. Use EAS Build or a custom dev client.
 
-- `@rnmapbox/maps` is the supported community package for Mapbox in React Native.
-- The older `@react-native-mapbox-gl/maps` package is deprecated and intentionally not used here.
-- `@rnmapbox/maps` 10.2+ defaults to Mapbox Maps SDK v11, which is recommended for new projects.
+```json
+{
+  "expo": {
+    "plugins": [
+      [
+        "react-native-mapbox-navigation-wrapper",
+        {
+          "accessToken": "pk.your_public_token",
+          "enableBackgroundLocation": false,
+          "locationWhenInUsePermission": "Allow this app to use your location for turn-by-turn navigation."
+        }
+      ]
+    ]
+  }
+}
+```
+
+Set `MAPBOX_DOWNLOADS_TOKEN` in your EAS environment for Android builds.
+
+## JavaScript API
+
+```tsx
+import {
+  MapboxNavigationView,
+  addMapboxNavigationListener,
+  startNavigation,
+  stopNavigation,
+} from 'react-native-mapbox-navigation-wrapper';
+
+const subscription = addMapboxNavigationListener(event => {
+  if (event.type === 'routeProgress') {
+    console.log(event.payload.distanceRemaining);
+  }
+});
+
+await startNavigation({
+  destination: {
+    latitude: 40.7128,
+    longitude: -74.006,
+    name: 'New York City',
+  },
+  profile: 'driving-traffic',
+  simulateRoute: false,
+});
+
+await stopNavigation();
+subscription.remove();
+```
+
+Embedded view placeholder:
+
+```tsx
+<MapboxNavigationView
+  style={{flex: 1}}
+  destination={{latitude: 40.7128, longitude: -74.006}}
+  profile="driving-traffic"
+  onRouteProgress={event => console.log(event.distanceRemaining)}
+/>
+```
+
+## Native implementation roadmap
+
+1. Replace the native placeholder methods with real Mapbox route/session lifecycle code.
+2. Android: create `MapboxNavigationApp`, request routes, attach observers, and host Mapbox navigation UX in an Activity/Fragment/View.
+3. iOS: create/present `NavigationViewController`, wire delegate callbacks, and embed navigation views when `MapboxNavigationView` is used.
+4. Forward route progress, arrival, cancel, voice, banner, reroute, and error callbacks to the JS event API.
+5. Add an example app that consumes this package exactly like an external React Native app would.
+
+## Public API
+
+See [`src/types.ts`](src/types.ts) for the typed options and events exposed to host applications.
