@@ -1,23 +1,19 @@
 # React Native Mapbox Navigation Wrapper
 
-Reusable React Native native module for Mapbox turn-by-turn Navigation SDK integration on iOS and Android.
+Reusable React Native native module scaffold for wrapping the Mapbox turn-by-turn Navigation SDK on iOS and Android.
 
-This package is designed to be installed by another React Native app. It provides the JS/TypeScript API, iOS/Android native module surfaces, native dependency wiring, and an optional Expo config plugin needed for Expo prebuild/EAS projects.
+This package is intended to be installed by another React Native app as a library. It exposes a typed JavaScript API, native iOS/Android package entry points, and an optional Expo config plugin for Expo prebuild/EAS consumers.
 
-> Implementation status: the package now exposes the full planned React Native API surface for full-screen, embedded, and headless navigation workflows. Native Android/iOS files contain the method entry points and validation hooks, but the final Mapbox SDK route/session/UI wiring still needs to be completed against the exact native SDK APIs in a buildable host app before production release.
+> Status: foundation scaffold. Native package registration, TypeScript API, CocoaPods/Gradle dependency wiring, and Expo config plugin are included. The full Mapbox route/session UI implementation should be completed inside the native module methods before publishing as production-ready navigation.
 
-## Capabilities covered by the public API
+## Features
 
-- Full-screen turn-by-turn navigation flow.
-- Embedded `<MapboxNavigationView />` flow.
-- Headless navigation flow for custom React Native UI.
-- Route calculation and route preview APIs.
-- Route selection and route clearing APIs.
-- Runtime location permission helpers.
-- Voice/banner instruction events.
-- Route progress, reroute, off-route, arrival, cancel, and error events.
-- Offline region and predictive cache API placeholders.
-- Expo config plugin for iOS plist keys, Android permissions, Mapbox access token metadata, and Mapbox Maven repository setup.
+- TypeScript API for starting/stopping navigation.
+- React Native event listener for navigation events.
+- Native view placeholder for an embedded navigation screen.
+- Android library module with Mapbox Navigation SDK dependencies.
+- iOS podspec with Mapbox Navigation SDK dependency.
+- Expo config plugin for tokens, location permissions, background navigation options, and Mapbox Maven setup.
 
 ## Installation in a bare React Native app
 
@@ -25,35 +21,35 @@ This package is designed to be installed by another React Native app. It provide
 npm install react-native-mapbox-navigation-wrapper
 ```
 
-### iOS
-
-```sh
-cd ios
-pod install
-cd ..
-```
-
-Add location usage text if your app does not use the Expo config plugin:
-
-```xml
-<key>NSLocationWhenInUseUsageDescription</key>
-<string>Allow this app to use your location for turn-by-turn navigation.</string>
-```
-
 ### Android
 
-Set the Mapbox downloads token for Gradle dependency resolution:
+Set a Mapbox downloads token for Gradle dependency resolution:
 
 ```properties
 # android/gradle.properties
 MAPBOX_DOWNLOADS_TOKEN=sk.your_downloads_token
 ```
 
-The public Mapbox token can be supplied through native app config or the Expo plugin. The downloads token should stay in Gradle properties or CI/EAS environment variables and should not be shipped to the app runtime.
+The library contributes foreground location permissions from its manifest. Host apps should request runtime location permission before starting active navigation.
 
-## Expo / EAS usage
+### iOS
 
-Expo Go is not supported because Mapbox Navigation requires custom native code. Use Expo prebuild, EAS Build, or a custom dev client.
+Run CocoaPods after installing the package:
+
+```sh
+cd ios && pod install && cd ..
+```
+
+Add a location usage string in the host app `Info.plist` if not using the Expo config plugin:
+
+```xml
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>Allow this app to use your location for turn-by-turn navigation.</string>
+```
+
+## Installation in an Expo prebuild/EAS app
+
+Expo Go is not supported because Mapbox Navigation requires custom native code. Use EAS Build or a custom dev client.
 
 ```json
 {
@@ -62,10 +58,9 @@ Expo Go is not supported because Mapbox Navigation requires custom native code. 
       [
         "react-native-mapbox-navigation-wrapper",
         {
-          "accessToken": "pk.your_public_mapbox_token",
+          "accessToken": "pk.your_public_token",
           "enableBackgroundLocation": false,
-          "locationWhenInUsePermission": "Allow this app to use your location for turn-by-turn navigation.",
-          "locationAlwaysPermission": "Allow this app to keep navigation active while it is in the background."
+          "locationWhenInUsePermission": "Allow this app to use your location for turn-by-turn navigation."
         }
       ]
     ]
@@ -73,212 +68,57 @@ Expo Go is not supported because Mapbox Navigation requires custom native code. 
 }
 ```
 
-Then build with:
+Set `MAPBOX_DOWNLOADS_TOKEN` in your EAS environment for Android builds.
 
-```sh
-npx expo prebuild
-EAS_NO_VCS=1 eas build --platform ios
-eas build --platform android
-```
-
-Set `MAPBOX_DOWNLOADS_TOKEN` in the EAS project environment for Android builds.
-
-## Permission flow
+## JavaScript API
 
 ```tsx
 import {
-  checkLocationPermission,
-  requestLocationPermission,
-  openLocationSettings,
-} from 'react-native-mapbox-navigation-wrapper';
-
-const status = await checkLocationPermission();
-
-if (status !== 'granted') {
-  const nextStatus = await requestLocationPermission();
-
-  if (nextStatus !== 'granted') {
-    await openLocationSettings();
-  }
-}
-```
-
-## Full-screen navigation
-
-```tsx
-import {
+  MapboxNavigationView,
   addMapboxNavigationListener,
   startNavigation,
   stopNavigation,
 } from 'react-native-mapbox-navigation-wrapper';
 
 const subscription = addMapboxNavigationListener(event => {
-  switch (event.type) {
-    case 'routeProgress':
-      console.log(event.payload.distanceRemaining, event.payload.durationRemaining);
-      break;
-    case 'arrival':
-      console.log('Arrived at waypoint', event.payload.waypointIndex);
-      break;
-    case 'error':
-      console.warn(event.payload.code, event.payload.message);
-      break;
+  if (event.type === 'routeProgress') {
+    console.log(event.payload.distanceRemaining);
   }
 });
 
 await startNavigation({
-  mode: 'fullscreen',
   destination: {
     latitude: 40.7128,
     longitude: -74.006,
     name: 'New York City',
   },
   profile: 'driving-traffic',
-  alternatives: true,
-  language: 'en',
-  units: 'imperial',
   simulateRoute: false,
-  ui: {
-    showTripProgress: true,
-    showManeuverView: true,
-    showCancelButton: true,
-    camera: {
-      followUserLocation: true,
-      showRecenterButton: true,
-    },
-  },
 });
 
 await stopNavigation();
 subscription.remove();
 ```
 
-## Embedded navigation view
+Embedded view placeholder:
 
 ```tsx
-import {MapboxNavigationView} from 'react-native-mapbox-navigation-wrapper';
-
-export function NavigationScreen() {
-  return (
-    <MapboxNavigationView
-      style={{flex: 1}}
-      mode="embedded"
-      destination={{latitude: 40.7128, longitude: -74.006, name: 'NYC'}}
-      profile="driving-traffic"
-      alternatives
-      simulateRoute={false}
-      ui={{
-        showTripProgress: true,
-        showManeuverView: true,
-        routeLine: {
-          visible: true,
-          primaryColor: '#2563eb',
-        },
-      }}
-      onRouteProgress={event => {
-        console.log(event.distanceRemaining, event.durationRemaining);
-      }}
-      onVoiceInstruction={event => {
-        console.log(event.announcement);
-      }}
-      onArrival={event => {
-        console.log('Arrived', event.waypointIndex);
-      }}
-      onError={event => {
-        console.warn(event.message);
-      }}
-    />
-  );
-}
+<MapboxNavigationView
+  style={{flex: 1}}
+  destination={{latitude: 40.7128, longitude: -74.006}}
+  profile="driving-traffic"
+  onRouteProgress={event => console.log(event.distanceRemaining)}
+/>
 ```
 
-## Headless navigation
+## Native implementation roadmap
 
-Use headless mode when the app wants to render its own React Native UI while receiving Mapbox navigation events from native guidance.
+1. Replace the native placeholder methods with real Mapbox route/session lifecycle code.
+2. Android: create `MapboxNavigationApp`, request routes, attach observers, and host Mapbox navigation UX in an Activity/Fragment/View.
+3. iOS: create/present `NavigationViewController`, wire delegate callbacks, and embed navigation views when `MapboxNavigationView` is used.
+4. Forward route progress, arrival, cancel, voice, banner, reroute, and error callbacks to the JS event API.
+5. Add an example app that consumes this package exactly like an external React Native app would.
 
-```tsx
-await startNavigation({
-  mode: 'headless',
-  destination: {latitude: 40.7128, longitude: -74.006},
-  profile: 'driving-traffic',
-});
-```
+## Public API
 
-## Route preview and route selection
-
-```tsx
-import {
-  calculateRoutes,
-  selectRoute,
-  startNavigationWithRoute,
-} from 'react-native-mapbox-navigation-wrapper';
-
-const routes = await calculateRoutes({
-  origin: {latitude: 40.73061, longitude: -73.935242},
-  destination: {latitude: 40.7128, longitude: -74.006},
-  profile: 'driving-traffic',
-  alternatives: true,
-});
-
-await selectRoute(routes[0].id);
-await startNavigationWithRoute(routes[0].id, {mode: 'fullscreen'});
-```
-
-## Offline and predictive cache APIs
-
-```tsx
-import {
-  createOfflineRegion,
-  listOfflineRegions,
-  setPredictiveCacheEnabled,
-} from 'react-native-mapbox-navigation-wrapper';
-
-await createOfflineRegion({
-  name: 'Manhattan',
-  bounds: {
-    northEast: {latitude: 40.88, longitude: -73.90},
-    southWest: {latitude: 40.68, longitude: -74.05},
-  },
-  minZoom: 10,
-  maxZoom: 16,
-});
-
-await setPredictiveCacheEnabled(true);
-const regions = await listOfflineRegions();
-```
-
-## Event names
-
-The library normalizes native SDK callbacks into a single React Native event stream:
-
-- `routeCalculationStarted`
-- `routeCalculationSucceeded`
-- `routeCalculationFailed`
-- `navigationStarted`
-- `navigationStopped`
-- `routeProgress`
-- `locationChanged`
-- `offRoute`
-- `rerouteStarted`
-- `rerouteSucceeded`
-- `rerouteFailed`
-- `alternativeRoutesChanged`
-- `arrival`
-- `finalArrival`
-- `cancel`
-- `error`
-- `voiceInstruction`
-- `bannerInstruction`
-- `offlineRegionProgress`
-- `offlineRegionError`
-
-See `src/types.ts` for the complete event payload definitions.
-
-## Native implementation checklist before production release
-
-1. Replace Android `not_implemented` rejections with real Mapbox Navigation SDK route/session/UI calls.
-2. Replace iOS `not_implemented` rejections with real Mapbox Navigation SDK route/session/UI calls.
-3. Replace Android embedded empty `View` with Mapbox navigation UI.
-4. Replace iOS embedded empty `UIView` with Mapbox navigation UI.
-5. Add a runnable example app that consumes this package as an external dependency.
-6. Add CI that builds the Android library, runs `pod install` for iOS, typechecks TypeScript, and tests the Expo plugin.
+See [`src/types.ts`](src/types.ts) for the typed options and events exposed to host applications.
